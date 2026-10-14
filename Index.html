@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Рофл-калькулятор</title>
+<style>
+  :root { color-scheme: dark; --bg:#000; --key:#242424; --orange:#f58a16; --text:#f5f5f5; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  .app { animation: appIn .55s cubic-bezier(.2,.8,.2,1) both; }
+  body::before { content:""; position:fixed; inset:-40%; pointer-events:none; z-index:0;
+    background:radial-gradient(circle at 20% 25%, #f58a1610, transparent 28%),
+               radial-gradient(circle at 80% 70%, #4285f410, transparent 30%);
+    animation: ambientGlow 9s ease-in-out infinite alternate; }
+  .app { position:relative; z-index:1; }
+  .top .tab { transition:color .25s ease, transform .25s ease; }
+  .top .tab.active { animation: tabGlow 3s ease-in-out infinite; }
+  .menu { animation: menuFloat 3s ease-in-out infinite; }
+  button { position:relative; overflow:hidden; }
+  button::after { content:""; position:absolute; width:20%; height:160%; top:-30%; left:-40%;
+    background:linear-gradient(90deg, transparent, #ffffff20, transparent);
+    transform:rotate(20deg); transition:left .45s ease; pointer-events:none; }
+  button:active::after { left:120%; }
+  .keys button:nth-child(4n) { animation: keyIn .4s both, operatorPulse 4s ease-in-out infinite; }
+  .result { transition:color .25s ease, text-shadow .25s ease; }
+  .display.joke-mode { animation: displayBounce .6s ease; }
+  .top { animation: slideDown .55s .06s both; }
+  .display { animation: fadeUp .55s .12s both; }
+  button { transition: transform .13s ease, filter .16s ease, background .2s ease; animation: keyIn .38s both; }
+  button:nth-child(1) { animation-delay:.04s } button:nth-child(2) { animation-delay:.06s }
+  button:nth-child(3) { animation-delay:.08s } button:nth-child(4) { animation-delay:.10s }
+  button:nth-child(n+5) { animation-delay:.12s }
+  .result.pop { animation: resultPop .42s cubic-bezier(.2,1.5,.4,1); }
+  .result.sixseven { color:#ff8c1a; text-shadow:0 0 18px #ff8c1a99; animation: sixSeven .75s ease-in-out; }
+  .app.shake { animation: shake .45s ease-in-out; }
+  .app.extra-glow { filter:drop-shadow(0 0 18px #f58a1633); }
+  body.theme-flash { background:#080503; }
+  .confetti { position:fixed; z-index:10; top:-20px; width:9px; height:15px; border-radius:2px; pointer-events:none; animation: confettiFall var(--duration,1.5s) linear forwards; }
+  @keyframes appIn { from { opacity:0; transform:scale(.985) } to { opacity:1; transform:scale(1) } }
+  @keyframes codeAppear { from { opacity:0; transform:translateY(-10px); filter:blur(3px) } to { opacity:1; transform:translateY(0); filter:blur(0) } }
+  @keyframes ambientGlow { from { transform:translate(-2%, -1%) rotate(0deg) } to { transform:translate(2%, 1%) rotate(8deg) } }
+  @keyframes tabGlow { 0%,100% { text-shadow:0 0 0 transparent } 50% { text-shadow:0 0 12px #ffffff22 } }
+  @keyframes menuFloat { 0%,100% { transform:translateY(0) } 50% { transform:translateY(3px) } }
+  @keyframes operatorPulse { 0%,100% { filter:brightness(1) } 50% { filter:brightness(1.12) } }
+  @keyframes displayBounce { 0% { transform:translateY(0) } 35% { transform:translateY(-8px) } 70% { transform:translateY(3px) } 100% { transform:translateY(0) } }
+  @keyframes slideDown { from { opacity:0; transform:translateY(-12px) } to { opacity:1; transform:translateY(0) } }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(16px) } to { opacity:1; transform:translateY(0) } }
+  @keyframes keyIn { from { opacity:0; transform:translateY(8px) scale(.97) } to { opacity:1; transform:translateY(0) scale(1) } }
+  @keyframes resultPop { 0% { transform:scale(.8); opacity:.3 } 70% { transform:scale(1.08) } 100% { transform:scale(1); opacity:1 } }
+  @keyframes sixSeven { 0%,100% { transform:rotate(0) scale(1) } 20% { transform:rotate(-5deg) scale(1.15) } 45% { transform:rotate(5deg) scale(1.22) } 70% { transform:rotate(-3deg) scale(1.1) } }
+  @keyframes shake { 0%,100% { transform:translateX(0) } 20%,60% { transform:translateX(-7px) } 40%,80% { transform:translateX(7px) } }
+  @keyframes confettiFall { to { transform:translate3d(var(--drift,30px),110vh,0) rotate(720deg); opacity:0 } }
+  @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration:.01ms !important; transition-duration:.01ms !important; } }
+  html, body { margin:0; width:100%; height:100%; overflow:hidden; background:var(--bg); color:var(--text); font-family:Roboto,"Arial",sans-serif; }
+  .app { height:100dvh; display:flex; flex-direction:column; padding: max(20px, env(safe-area-inset-top)) 5.4vw max(14px, env(safe-area-inset-bottom)); }
+  .top { height:54px; display:flex; align-items:center; justify-content:center; gap:34px; flex-shrink:0; font-size:clamp(17px, 4.3vw, 24px); white-space:nowrap; }
+  .tab.active { color:#eee; } .tab.muted { color:#777; }
+  .menu-wrap { position:absolute; right:6%; top:24px; z-index:20; }
+  .menu { color:#aaa; font-size:26px; line-height:1; cursor:pointer; padding:3px 8px; border-radius:18px; transition:background .2s, transform .2s; user-select:none; }
+  .menu:active { background:#292929; transform:scale(.9); }
+  .menu-panel { position:absolute; right:0; top:40px; width:220px; padding:7px; border-radius:18px; background:#292929; box-shadow:0 12px 35px #0009; opacity:0; transform:translateY(-8px) scale(.96); pointer-events:none; transition:opacity .2s, transform .2s; }
+  .menu-panel.open { opacity:1; transform:translateY(0) scale(1); pointer-events:auto; }
+  .menu-item { padding:13px 12px; border-radius:12px; color:#eee; font-size:15px; cursor:pointer; }
+  .menu-item:active, .menu-item:hover { background:#3a3a3a; }
+  .converter-overlay { position:fixed; inset:0; z-index:15; display:none; align-items:flex-start; justify-content:center; padding:17vh 7vw 5vh; overflow:hidden; }
+  .converter-overlay.open { display:flex; }
+  .converter-code { width:min(100%,520px); max-height:68vh; overflow:hidden; color:#a6a6a6; font:12px/1.75 ui-monospace,SFMono-Regular,Consolas,monospace; white-space:pre-wrap; overflow-wrap:anywhere; opacity:0; transform:translateY(-10px); animation:codeAppear .7s .08s ease forwards; }
+  .converter-code .code-line { display:block; }
+  .converter-code .faint { color:#6b6b6b; }
+  .converter-code .accent { color:#f58a16; }
+  .converter-shade { position:fixed; inset:0; z-index:14; background:rgba(0,0,0,0); pointer-events:none; transition:background .65s ease; }
+  .converter-shade.open { background:rgba(0,0,0,.88); }
+  .converter-close { position:fixed; top:24px; right:6%; z-index:17; width:42px; height:42px; border:0; border-radius:50%; background:#252525; color:#ddd; font-size:22px; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; transform:rotate(-90deg); }
+  .converter-close.open { opacity:1; pointer-events:auto; transform:rotate(0); }
+  .display { flex:1; min-height:0; display:flex; flex-direction:column; justify-content:flex-end; align-items:flex-end; padding:0 0 34px; overflow:hidden; }
+  .expression { max-width:100%; min-height:25px; color:#999; font-size:clamp(16px,4vw,22px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .result { max-width:100%; min-height:62px; font-size:clamp(42px, 12vw, 62px); font-weight:300; line-height:1.2; overflow:hidden; overflow-wrap:anywhere; text-align:right; }
+  .cursor { display:inline-block; width:2px; height:.95em; background:#4285f4; vertical-align:-.08em; margin-left:2px; }
+  .keys { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); grid-template-rows:repeat(5, minmax(0,1fr)); gap:1.8vw; height:min(85vw, 64vh); max-height:660px; flex-shrink:0; }
+  button { border:0; border-radius:clamp(18px,4vw,27px); background:var(--key); color:var(--text); font-size:clamp(25px,6vw,34px); font-weight:400; display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer; }
+  button:active { filter:brightness(1.35); transform:scale(.985); }
+  button.function, button.operator { color:var(--orange); }
+  button.equals { background:var(--orange); color:white; }
+  .small-icon { font-size:.8em; font-weight:600; }
+  @media (min-width:600px) { .app { max-width:460px; margin:auto; } .keys { gap:8px; height:min(78vw,620px); } }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <span class="tab active" id="calculatorTab" role="button" tabindex="0">Калькулятор</span>
+    <span class="tab muted" id="converterTab" role="button" tabindex="0">Конвертер</span>
+  </div>
+  <div class="menu-wrap">
+    <div class="menu" id="menuButton" role="button" tabindex="0" aria-label="Открыть меню">⋮</div>
+    <div class="menu-panel" id="menuPanel">
+      <div class="menu-item" data-menu="history">🕘 История вычислений</div>
+      <div class="menu-item" data-menu="theme">✨ Эффект оформления</div>
+      <div class="menu-item" data-menu="about">🐾 О калькуляторе</div>
+      <div class="menu-item" data-menu="clear">🧹 Очистить экран</div>
+    </div>
+  </div>
+  <div class="display" aria-live="polite">
+    <div class="expression" id="expression"></div>
+    <div class="result" id="display">0<span class="cursor"></span></div>
+  </div>
+  <div class="keys">
+    <button class="function" data-action="clear">AC</button>
+    <button class="function" data-action="backspace" aria-label="Удалить">⌫</button>
+    <button class="function" data-action="percent">%</button>
+    <button class="operator" data-value="÷">÷</button>
+
+    <button data-value="7">7</button>
+    <button data-value="8">8</button>
+    <button data-value="9">9</button>
+    <button class="operator" data-value="×">×</button>
+
+    <button data-value="4">4</button>
+    <button data-value="5">5</button>
+    <button data-value="6">6</button>
+    <button class="operator" data-value="−">−</button>
+
+    <button data-value="1">1</button>
+    <button data-value="2">2</button>
+    <button data-value="3">3</button>
+    <button class="operator" data-value="+">+</button>
+
+    <button class="function small-icon" data-action="sign">⁺⁄₋</button>
+    <button data-value="0">0</button>
+    <button data-value=".">.</button>
+    <button class="equals" data-action="equals">=</button>
+  </div>
+</div>
+<div class="converter-shade" id="converterShade"></div>
+<div class="converter-overlay" id="converterOverlay" aria-hidden="true">
+  <div class="converter-code" id="converterCode"></div>
+</div>
+<button class="converter-close" id="converterClose" aria-label="Закрыть конвертер">×</button>
+<script>
+(() => {
+  const display = document.getElementById('display');
+  const expressionEl = document.getElementById('expression');
+  let input = '0';
+  let justSolved = false;
+  let isJoke = false;
+  const history = [];
+  const calculatorTab = document.getElementById('calculatorTab');
+  const converterTab = document.getElementById('converterTab');
+  const converterShade = document.getElementById('converterShade');
+  const converterOverlay = document.getElementById('converterOverlay');
+  const converterCode = document.getElementById('converterCode');
+  const converterClose = document.getElementById('converterClose');
+  const menuButton = document.getElementById('menuButton');
+  const menuPanel = document.getElementById('menuPanel');
+
+  function openConverter() {
+    converterTab.classList.add('active'); converterTab.classList.remove('muted');
+    calculatorTab.classList.remove('active'); calculatorTab.classList.add('muted');
+    converterShade.classList.add('open');
+    converterOverlay.classList.add('open');
+    converterOverlay.setAttribute('aria-hidden', 'false');
+    converterClose.classList.add('open');
+    // Намеренно выглядит как незавершённый фрагмент исходника калькулятора.
+    converterCode.innerHTML = '';
+    const lines = [
+      '<span class="code-line"><span class="faint">&lt;!DOCTYPE html&gt;</span></span>',
+      '<span class="code-line">&lt;html lang="ru"&gt;</span>',
+      '<span class="code-line">&lt;head&gt;</span>',
+      '<span class="code-line">  &lt;meta charset="UTF-8"&gt;</span>',
+      '<span class="code-line">  &lt;title&gt;Рофл-калькулятор&lt;/title&gt;</span>',
+      '<span class="code-line">&lt;/head&gt;</span>',
+      '<span class="code-line">&lt;body&gt;</span>',
+      '<span class="code-line">  &lt;div class="app"&gt;</span>',
+      '<span class="code-line">    &lt;div class="top"&gt;</span>',
+      '<span class="code-line">      &lt;span&gt;Калькулятор&lt;/span&gt;</span>',
+      '<span class="code-line">      &lt;span class="accent"&gt;Конвертер&lt;/span&gt;</span>',
+      '<span class="code-line">    &lt;/div&gt;</span>',
+      '<span class="code-line">    &lt;div class="display"&gt;</span>',
+      '<span class="code-line">      &lt;div class="result"&gt;...&lt;/div&gt;</span>',
+      '<span class="code-line">    &lt;/div&gt;</span>',
+      '<span class="code-line">    &lt;div class="keys"&gt;</span>',
+      '<span class="code-line">      &lt;button&gt;AC&lt;/button&gt;</span>',
+      '<span class="code-line">      &lt;button&gt;7&lt;/button&gt;</span>',
+      '<span class="code-line">      &lt;button&gt;8&lt;/button&gt;</span>',
+      '<span class="code-line">      <span class="faint">...</span></span>',
+      '<span class="code-line">      &lt;button class="equals"&gt;=&lt;/button&gt;</span>',
+      '<span class="code-line">    &lt;/div&gt;</span>',
+      '<span class="code-line">  &lt;/div&gt;</span>',
+      '<span class="code-line faint">  // converter module: still loading...</span>',
+      '<span class="code-line accent">  const converter = { status: "unfinished", value: _ }</span>',
+      '<span class="code-line faint">  /* TODO: finish this part...</span>'
+    ];
+    converterCode.innerHTML = lines.join('');
+  }
+  function closeConverter() {
+    converterShade.classList.remove('open');
+    converterOverlay.classList.remove('open');
+    converterOverlay.setAttribute('aria-hidden', 'true');
+    converterClose.classList.remove('open');
+    converterTab.classList.remove('active'); converterTab.classList.add('muted');
+    calculatorTab.classList.add('active'); calculatorTab.classList.remove('muted');
+  }
+  function toggleMenu() { menuPanel.classList.toggle('open'); }
+
+  function paint() {
+    display.innerHTML = '';
+    display.classList.remove('pop', 'sixseven');
+    display.append(document.createTextNode(input));
+    const cursor = document.createElement('span');
+    cursor.className = 'cursor';
+    display.append(cursor);
+  }
+  function animateResult(className) {
+    display.classList.remove('pop', 'sixseven');
+    void display.offsetWidth;
+    display.classList.add(className);
+  }
+  function confettiBurst() {
+    const colors = ['#f58a16', '#ffd166', '#ffffff', '#70d6ff', '#ff70a6'];
+    for (let i = 0; i < 42; i++) {
+      const bit = document.createElement('i');
+      bit.className = 'confetti';
+      bit.style.left = Math.random() * 100 + 'vw';
+      bit.style.background = colors[i % colors.length];
+      bit.style.setProperty('--duration', (1.1 + Math.random() * 1.5) + 's');
+      bit.style.setProperty('--drift', (Math.random() * 180 - 90) + 'px');
+      document.body.appendChild(bit);
+      bit.addEventListener('animationend', () => bit.remove(), { once:true });
+    }
+  }
+  function setInput(value) {
+    input = value;
+    isJoke = false;
+    paint();
+  }
+  function append(value) {
+    if (isJoke) { input = '0'; expressionEl.textContent = ''; isJoke = false; }
+    if (justSolved && /[0-9.]/.test(value)) input = '0';
+    justSolved = false;
+    if (/[0-9]/.test(value) && value.length === 1) {
+      if (input === '0') input = value;
+      else input += value;
+    } else if (value === '.') {
+      const lastNumber = input.split(/[+−×÷]/).pop();
+      if (!lastNumber.includes('.')) input += lastNumber ? '.' : '0.';
+    } else if (/[+−×÷]/.test(value)) {
+      if (/[+−×÷]$/.test(input)) input = input.slice(0, -1) + value;
+      else input += value;
+    }
+    paint();
+  }
+  function calculate() {
+    const normalized = input.replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-');
+    if (!/^[0-9.+*/\- ]+$/.test(normalized) || !/[0-9]/.test(normalized)) throw Error('bad expression');
+    const result = Function('"use strict"; return (' + normalized + ')')();
+    if (!Number.isFinite(result)) throw Error('bad result');
+    return Number.parseFloat(result.toPrecision(10)).toString();
+  }
+  function equals() {
+    if (isJoke) return;
+    const original = input.replace(/\s/g, '');
+    history.unshift(input);
+    if (history.length > 12) history.pop();
+    expressionEl.textContent = input + ' =';
+
+    // Пасхалка Six Seven — проверяем точную запись до обычного рофла.
+    const normalized = original.replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-');
+    const sixSeven = /^(6\+7|7\+6)$/.test(normalized);
+
+    if (sixSeven) {
+      const sixSevenVariants = [
+        '67!!!',
+        'SixSeveeen!!!',
+        'SIX SEVEN 🗣️🔥',
+        '67?! 💀',
+        'SIXSEVEEEEEN',
+        '6️⃣7️⃣‼️',
+        '67 LET’S GOOO!!!',
+        'SIX. SEVEN. 😭',
+        '67 🚀✨',
+        'SIX SEVENNNN!!!'
+      ];
+      // Не повторяем один и тот же вариант два раза подряд.
+      let choice = sixSevenVariants[Math.floor(Math.random() * sixSevenVariants.length)];
+      if (choice === window.lastSixSevenVariant && sixSevenVariants.length > 1) {
+        const choices = sixSevenVariants.filter(item => item !== window.lastSixSevenVariant);
+        choice = choices[Math.floor(Math.random() * choices.length)];
+      }
+      window.lastSixSevenVariant = choice;
+      input = choice;
+      isJoke = true;
+      justSolved = true;
+      paint();
+      animateResult('sixseven');
+      const app = document.querySelector('.app');
+      const displayBox = document.querySelector('.display');
+      displayBox.classList.remove('joke-mode');
+      void displayBox.offsetWidth;
+      displayBox.classList.add('joke-mode');
+      app.classList.remove('shake');
+      void app.offsetWidth;
+      app.classList.add('shake');
+      confettiBurst();
+      return;
+    }
+
+    // Любое другое выражение превращается в Hello World!
+    input = 'Hello World!';
+    isJoke = true;
+    justSolved = true;
+    paint();
+    animateResult('pop');
+    const displayBox = document.querySelector('.display');
+    displayBox.classList.remove('joke-mode');
+    void displayBox.offsetWidth;
+    displayBox.classList.add('joke-mode');
+  }
+  document.querySelector('.keys').addEventListener('click', event => {
+    const button = event.target.closest('button');
+    if (!button) return;
+    const action = button.dataset.action;
+    const value = button.dataset.value;
+    if (action === 'clear') {
+      input = '0'; expressionEl.textContent = ''; justSolved = false; isJoke = false; paint();
+    } else if (action === 'backspace') {
+      if (isJoke) { input = '0'; isJoke = false; expressionEl.textContent = ''; }
+      else input = input.length > 1 ? input.slice(0, -1) : '0';
+      justSolved = false; paint();
+    } else if (action === 'equals') equals();
+    else if (action === 'percent') {
+      if (!isJoke) {
+        try { setInput((Number(calculate()) / 100).toString()); }
+        catch (_) { setInput('0'); }
+      }
+    } else if (action === 'sign') {
+      if (!isJoke) {
+        if (input.startsWith('−')) input = input.slice(1);
+        else input = '−' + input;
+        paint();
+      }
+    } else if (value) append(value);
+  });
+  calculatorTab.addEventListener('click', closeConverter);
+  converterTab.addEventListener('click', openConverter);
+  converterClose.addEventListener('click', closeConverter);
+  converterShade.addEventListener('click', closeConverter);
+  menuButton.addEventListener('click', toggleMenu);
+  menuButton.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') toggleMenu(); });
+  calculatorTab.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') closeConverter(); });
+  converterTab.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') openConverter(); });
+  menuPanel.addEventListener('click', event => {
+    const item = event.target.closest('.menu-item');
+    if (!item) return;
+    const action = item.dataset.menu;
+    menuPanel.classList.remove('open');
+    if (action === 'history') {
+      expressionEl.textContent = history.length ? 'История: ' + history.slice(0,4).join(' • ') : 'История пока пуста';
+      animateResult('pop');
+    } else if (action === 'theme') {
+      document.querySelector('.app').classList.toggle('extra-glow');
+      document.body.classList.toggle('theme-flash');
+      confettiBurst();
+    } else if (action === 'about') {
+      expressionEl.textContent = 'Рофл-калькулятор • Six Seven Edition 🐾';
+      input = 'Made with :3';
+      isJoke = true;
+      paint();
+      animateResult('pop');
+    } else if (action === 'clear') {
+      input = '0'; expressionEl.textContent = ''; isJoke = false; justSolved = false; paint();
+    }
+  });
+  document.addEventListener('click', event => {
+    if (!event.target.closest('.menu-wrap')) menuPanel.classList.remove('open');
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { closeConverter(); menuPanel.classList.remove('open'); }
+  });
+  document.addEventListener('keydown', event => {
+    if (/^[0-9.]$/.test(event.key)) append(event.key);
+    else if (event.key === '+') append('+');
+    else if (event.key === '-') append('−');
+    else if (event.key === '*') append('×');
+    else if (event.key === '/') { event.preventDefault(); append('÷'); }
+    else if (event.key === 'Enter' || event.key === '=') equals();
+    else if (event.key === 'Backspace') document.querySelector('[data-action="backspace"]').click();
+    else if (event.key === 'Escape') document.querySelector('[data-action="clear"]').click();
+  });
+  paint();
+})();
+</script>
+</body>
+</html>
